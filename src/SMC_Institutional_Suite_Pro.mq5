@@ -552,8 +552,9 @@ void DrawStructure(const datetime &time[], int total)
          ObjectSetInteger(0, name, OBJPROP_COLOR, lblClr);
          ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 7);
          ObjectSetString(0, name, OBJPROP_FONT, "Arial");
+         bool isHighPoint = (label == "HH" || label == "LH");
          ObjectSetInteger(0, name, OBJPROP_ANCHOR, 
-                          g_structure[i].isHigh ? ANCHOR_LOWER : ANCHOR_UPPER);
+                          isHighPoint ? ANCHOR_LOWER : ANCHOR_UPPER);
       }
    }
 }
