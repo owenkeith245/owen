@@ -617,13 +617,14 @@ void DetectLiquidity(int idx)
    g_pairs[idx].liqSweepBear = false;
    for(int i = 0; i < g_pairs[idx].liqCount; i++)
    {
-      LiquidityZone &z = g_pairs[idx].liqZones[i];
-      if(z.swept) continue;
+      if(g_pairs[idx].liqZones[i].swept) continue;
       double point2 = SymbolInfoDouble(sym, SYMBOL_POINT);
-      if((z.type == ZONE_PDL || z.type == ZONE_EQUAL_LOW || z.type == ZONE_ASIAN_L) && bid < z.price && bid > z.price - point2 * 100)
-      { z.swept = true; g_pairs[idx].liqSweepBull = true; }
-      if((z.type == ZONE_PDH || z.type == ZONE_EQUAL_HIGH || z.type == ZONE_ASIAN_H) && bid > z.price && bid < z.price + point2 * 100)
-      { z.swept = true; g_pairs[idx].liqSweepBear = true; }
+      ENUM_ZONE_TYPE zt = g_pairs[idx].liqZones[i].type;
+      double zp = g_pairs[idx].liqZones[i].price;
+      if((zt == ZONE_PDL || zt == ZONE_EQUAL_LOW || zt == ZONE_ASIAN_L) && bid < zp && bid > zp - point2 * 100)
+      { g_pairs[idx].liqZones[i].swept = true; g_pairs[idx].liqSweepBull = true; }
+      if((zt == ZONE_PDH || zt == ZONE_EQUAL_HIGH || zt == ZONE_ASIAN_H) && bid > zp && bid < zp + point2 * 100)
+      { g_pairs[idx].liqZones[i].swept = true; g_pairs[idx].liqSweepBear = true; }
    }
 }
 
@@ -966,23 +967,22 @@ bool ExecuteSignal(int idx)
       // Register for management
       if(g_managedCount < ArraySize(g_managed))
       {
-         ManagedTrade &mt = g_managed[g_managedCount];
-         mt.ticket = g_trade.ResultOrder();
-         mt.symbol = sym;
-         mt.entryPrice = entry;
-         mt.initialSL = sl;
-         mt.currentSL = sl;
-         mt.initialLots = lots;
-         mt.currentLots = lots;
-         mt.riskAmount = g_account.Balance() * riskPct / 100.0;
-         mt.isBuy = isBuy;
-         mt.beMoveDone = false;
-         mt.partialDone = false;
-         mt.trailing = false;
-         mt.maxProfitR = 0;
-         mt.openTime = TimeCurrent();
-         mt.confidence = g_pairs[idx].confidence;
-         mt.strategy = stratName;
+         g_managed[g_managedCount].ticket = g_trade.ResultOrder();
+         g_managed[g_managedCount].symbol = sym;
+         g_managed[g_managedCount].entryPrice = entry;
+         g_managed[g_managedCount].initialSL = sl;
+         g_managed[g_managedCount].currentSL = sl;
+         g_managed[g_managedCount].initialLots = lots;
+         g_managed[g_managedCount].currentLots = lots;
+         g_managed[g_managedCount].riskAmount = g_account.Balance() * riskPct / 100.0;
+         g_managed[g_managedCount].isBuy = isBuy;
+         g_managed[g_managedCount].beMoveDone = false;
+         g_managed[g_managedCount].partialDone = false;
+         g_managed[g_managedCount].trailing = false;
+         g_managed[g_managedCount].maxProfitR = 0;
+         g_managed[g_managedCount].openTime = TimeCurrent();
+         g_managed[g_managedCount].confidence = g_pairs[idx].confidence;
+         g_managed[g_managedCount].strategy = stratName;
          g_managedCount++;
       }
       
@@ -1224,16 +1224,26 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    else if(dt.hour >= 0 && dt.hour < 8) session = "ASIAN";
    
    // Update session stats
-   SessionStats *ss = NULL;
-   if(session == "LONDON") ss = &g_londonStats;
-   else if(session == "NEWYORK") ss = &g_nyStats;
-   else if(session == "ASIAN") ss = &g_asianStats;
-   if(ss != NULL)
+   if(session == "LONDON")
    {
-      ss.trades++;
-      if(isWin) ss.wins++;
-      ss.pnl += profit;
-      ss.winRate = (ss.trades > 0) ? (double)ss.wins / ss.trades * 100 : 0;
+      g_londonStats.trades++;
+      if(isWin) g_londonStats.wins++;
+      g_londonStats.pnl += profit;
+      g_londonStats.winRate = (g_londonStats.trades > 0) ? (double)g_londonStats.wins / g_londonStats.trades * 100 : 0;
+   }
+   else if(session == "NEWYORK")
+   {
+      g_nyStats.trades++;
+      if(isWin) g_nyStats.wins++;
+      g_nyStats.pnl += profit;
+      g_nyStats.winRate = (g_nyStats.trades > 0) ? (double)g_nyStats.wins / g_nyStats.trades * 100 : 0;
+   }
+   else if(session == "ASIAN")
+   {
+      g_asianStats.trades++;
+      if(isWin) g_asianStats.wins++;
+      g_asianStats.pnl += profit;
+      g_asianStats.winRate = (g_asianStats.trades > 0) ? (double)g_asianStats.wins / g_asianStats.trades * 100 : 0;
    }
    
    // Determine strategy from comment
