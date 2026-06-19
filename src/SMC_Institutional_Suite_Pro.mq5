@@ -8,12 +8,12 @@
 #property indicator_chart_window
 #property indicator_buffers 0
 #property indicator_plots   0
-#property strict
+
 
 //+------------------------------------------------------------------+
-//| INPUT PARAMETERS — MODULE TOGGLES                                 |
+//| INPUT PARAMETERS - MODULE TOGGLES                                 |
 //+------------------------------------------------------------------+
-input group "══════ MODULE TOGGLES ══════"
+input group "====== MODULE TOGGLES ======"
 input bool     InpShowStructure       = true;     // Show Market Structure (BOS/CHoCH)
 input bool     InpShowLiquidity       = true;     // Show Liquidity Zones
 input bool     InpShowOrderBlocks     = true;     // Show Order Blocks
@@ -27,14 +27,14 @@ input bool     InpShowProbability     = true;     // Show AI Probability
 input bool     InpShowSignals         = true;     // Show Entry Signals
 input bool     InpShowDashboard       = true;     // Show Main Dashboard
 
-input group "══════ MARKET STRUCTURE ══════"
+input group "====== MARKET STRUCTURE ======"
 input int      InpStructureBars       = 5;        // Swing detection bars (each side)
 input int      InpMaxStructurePoints  = 50;       // Max structure points to display
 input color    InpBOSColor            = clrDodgerBlue;  // BOS line color
 input color    InpCHoCHColor          = clrOrangeRed;   // CHoCH line color
 input int      InpStructureWidth      = 2;        // Structure line width
 
-input group "══════ LIQUIDITY ══════"
+input group "====== LIQUIDITY ======"
 input double   InpEqualThreshold      = 0.3;      // Equal high/low threshold (ATR multiplier)
 input int      InpLiqLookback         = 50;       // Lookback bars for liquidity
 input color    InpBuySideLiqColor     = clrRoyalBlue;   // Buy side liquidity
@@ -42,7 +42,7 @@ input color    InpSellSideLiqColor    = clrCrimson;     // Sell side liquidity
 input color    InpEqualHighColor      = clrPurple;      // Equal highs
 input color    InpEqualLowColor       = clrOrange;      // Equal lows
 
-input group "══════ ORDER BLOCKS ══════"
+input group "====== ORDER BLOCKS ======"
 input int      InpOBLookback          = 30;       // OB lookback bars
 input int      InpMaxOB               = 20;       // Max order blocks to show
 input bool     InpHideMitigated       = false;    // Hide mitigated OBs
@@ -50,7 +50,7 @@ input color    InpBullOBColor         = C'34,139,34';   // Bullish OB color
 input color    InpBearOBColor         = C'178,34,34';   // Bearish OB color
 input int      InpOBTransparency      = 80;       // OB transparency (0-100)
 
-input group "══════ FAIR VALUE GAPS ══════"
+input group "====== FAIR VALUE GAPS ======"
 input int      InpFVGLookback         = 30;       // FVG lookback bars
 input int      InpMaxFVG              = 20;       // Max FVGs to show
 input double   InpMinFVGSize          = 0.5;      // Min FVG size (ATR multiplier)
@@ -58,13 +58,13 @@ input color    InpBullFVGColor        = C'0,100,0';     // Bullish FVG
 input color    InpBearFVGColor        = C'139,0,0';     // Bearish FVG
 input int      InpFVGTransparency     = 85;       // FVG transparency
 
-input group "══════ PREMIUM/DISCOUNT ══════"
+input group "====== PREMIUM/DISCOUNT ======"
 input int      InpPDSwingBars         = 50;       // Swing range lookback
 input color    InpPremiumColor        = C'255,200,200'; // Premium zone
 input color    InpDiscountColor       = C'200,255,200'; // Discount zone
 input color    InpEquilibriumColor    = clrGray;        // Equilibrium line
 
-input group "══════ SESSIONS ══════"
+input group "====== SESSIONS ======"
 input bool     InpShowAsian           = true;     // Show Asian Session
 input bool     InpShowLondon          = true;     // Show London Session
 input bool     InpShowNY              = true;     // Show New York Session
@@ -78,7 +78,7 @@ input color    InpAsianColor          = C'255,255,200'; // Asian session color
 input color    InpLondonColor         = C'200,220,255'; // London session color
 input color    InpNYColor             = C'255,220,200'; // NY session color
 
-input group "══════ DAILY/WEEKLY/MONTHLY LEVELS ══════"
+input group "====== DAILY/WEEKLY/MONTHLY LEVELS ======"
 input color    InpPDHColor            = clrBlue;        // Previous Day High
 input color    InpPDLColor            = clrBlue;        // Previous Day Low
 input color    InpPWHColor            = clrDarkGreen;   // Previous Week High
@@ -86,7 +86,7 @@ input color    InpPWLColor            = clrDarkGreen;   // Previous Week Low
 input color    InpPMHColor            = clrDarkRed;     // Previous Month High
 input color    InpPMLColor            = clrDarkRed;     // Previous Month Low
 
-input group "══════ AI PROBABILITY ══════"
+input group "====== AI PROBABILITY ======"
 input double   InpMinProbability      = 60.0;     // Min probability for signal
 input double   InpTrendWeight         = 20.0;     // Trend weight
 input double   InpLiqWeight           = 20.0;     // Liquidity weight
@@ -96,7 +96,7 @@ input double   InpVolumeWeight        = 10.0;     // Volume weight
 input double   InpSessionWeight       = 10.0;     // Session weight
 input double   InpMomentumWeight      = 10.0;     // Momentum weight
 
-input group "══════ ALERTS ══════"
+input group "====== ALERTS ======"
 input bool     InpAlertDesktop        = true;     // Desktop notification
 input bool     InpAlertMobile         = true;     // Mobile push notification
 input bool     InpAlertEmail          = false;    // Email alert
@@ -202,10 +202,10 @@ string         g_lastAlertMsg = "";
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("════════════════════════════════════════════");
+   Print("============================================");
    Print("  SMC INSTITUTIONAL SUITE PRO v1.0");
    Print("  Smart Money Concepts Analysis Engine");
-   Print("════════════════════════════════════════════");
+   Print("============================================");
    
    return(INIT_SUCCEEDED);
 }
@@ -247,9 +247,9 @@ int OnCalculate(const int rates_total,
    // Clean old objects
    ObjectsDeleteAll(0, "SMC_");
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 1: MARKET STRUCTURE
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowStructure)
    {
       DetectSwings(high, low, time, rates_total);
@@ -257,18 +257,18 @@ int OnCalculate(const int rates_total,
       DrawStructure(time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 2: LIQUIDITY DETECTION
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowLiquidity)
    {
       DetectLiquidity(high, low, close, time, rates_total);
       DrawLiquidity(time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 3: ORDER BLOCKS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowOrderBlocks)
    {
       DetectOrderBlocks(open, high, low, close, time, rates_total);
@@ -276,9 +276,9 @@ int OnCalculate(const int rates_total,
       DrawOrderBlocks(time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 4: FAIR VALUE GAPS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowFVG)
    {
       DetectFVGs(high, low, time, rates_total);
@@ -286,65 +286,65 @@ int OnCalculate(const int rates_total,
       DrawFVGs(time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 5: PREMIUM/DISCOUNT ZONES
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowPremDiscount)
    {
       DrawPremiumDiscount(high, low, time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 6: LIQUIDITY SWEEPS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowSweeps)
    {
       DetectSweeps(high, low, close, time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 7: SESSIONS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowSessions)
    {
       DrawSessions(high, low, time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 8: DAILY/WEEKLY/MONTHLY LEVELS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowDWMLevels)
    {
       DrawDWMLevels(time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 10: MTF DASHBOARD
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowMTFDashboard)
    {
       DrawMTFDashboard();
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 11: AI PROBABILITY
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowProbability)
    {
       CalcProbability(open, high, low, close, time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 12: ENTRY SIGNALS
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowSignals && g_currentProb >= InpMinProbability)
    {
       DrawEntrySignal(high, low, close, time, rates_total);
    }
    
-   // ═══════════════════════════════════════
+   // =======================================
    // MODULE 13: MAIN DASHBOARD
-   // ═══════════════════════════════════════
+   // =======================================
    if(InpShowDashboard)
    {
       DrawDashboard();
@@ -1150,7 +1150,7 @@ void DrawMTFDashboard()
    int x = 10, y = 400;
    string pfx = "SMC_mtf_";
    
-   CreateDashLabel(pfx+"title", x, y, "── MTF ANALYSIS ──", clrGold, 9); y += 14;
+   CreateDashLabel(pfx+"title", x, y, "-- MTF ANALYSIS --", clrGold, 9); y += 14;
    
    // Check trend on multiple timeframes
    ENUM_TIMEFRAMES tfs[] = {PERIOD_M1, PERIOD_M5, PERIOD_M15, PERIOD_H1, PERIOD_H4, PERIOD_D1};
@@ -1394,7 +1394,7 @@ void DrawDashboard()
    string pfx = "SMC_dash_";
    
    // Header
-   CreateDashLabel(pfx+"hdr", x, y, "═══ SMC INSTITUTIONAL SUITE PRO ═══", clrGold, 10); y += 18;
+   CreateDashLabel(pfx+"hdr", x, y, "=== SMC INSTITUTIONAL SUITE PRO ===", clrGold, 10); y += 18;
    
    // Trend
    string trend = g_isBullish ? "Bullish" : "Bearish";
@@ -1483,7 +1483,7 @@ void DrawDashboard()
    
    // Probability breakdown
    y += 4;
-   CreateDashLabel(pfx+"brk", x, y, "── PROBABILITY BREAKDOWN ──", clrGold, 8); y += 13;
+   CreateDashLabel(pfx+"brk", x, y, "-- PROBABILITY BREAKDOWN --", clrGold, 8); y += 13;
    CreateDashLabel(pfx+"f1", x, y, "Trend:    " + DoubleToString(g_trendFactor, 0) + "/" + DoubleToString(InpTrendWeight, 0), clrWhite, 8); y += 12;
    CreateDashLabel(pfx+"f2", x, y, "Liquidity:" + DoubleToString(g_liqFactor, 0) + "/" + DoubleToString(InpLiqWeight, 0), clrWhite, 8); y += 12;
    CreateDashLabel(pfx+"f3", x, y, "OB:       " + DoubleToString(g_obFactor, 0) + "/" + DoubleToString(InpOBWeight, 0), clrWhite, 8); y += 12;
