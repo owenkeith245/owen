@@ -17,13 +17,13 @@
 //| 11. Capital Preservation (spread/slippage/news/liquidity filter)  |
 //| 12. Continuous Self-Evaluation (weekly stats, strategy ranking)   |
 //+------------------------------------------------------------------+
-#property copyright "Pro AI Trader v1.0"
+#property copyright "Pro AI Trader v2.0"
 #property link      ""
-#property version   "1.00"
+#property version   "2.00"
 #property strict
-#property description "Professional AI Trading System"
-#property description "12-Module Adaptive Decision Engine"
-#property description "Multi-Pair, Multi-TF, Self-Learning Framework"
+#property description "Professional AI Trading System - FULLY AUTOMATED"
+#property description "12-Module Adaptive Decision Engine + Auto-Pilot"
+#property description "Self-Healing, Self-Rotating, Zero-Intervention Framework"
 
 #include <Trade\Trade.mqh>
 #include <Trade\AccountInfo.mqh>
@@ -106,7 +106,19 @@ input int      InpNewsQuietMin       = 15;           // Quiet mins around high-i
 input bool     InpSkipLowLiquidity   = true;         // Skip if tick rate too low
 input int      InpMinTicksPerMin     = 5;            // Min ticks/min to consider liquid
 
-input group "══════ 9. SYSTEM ══════"
+input group "══════ 9. AUTO-PILOT ENGINE ══════"
+input bool     InpFullAuto           = true;          // FULL AUTO MODE (no manual intervention)
+input bool     InpAutoStratRotation  = true;          // Auto-disable losing strategies
+input int      InpStratMinTrades     = 10;            // Min trades before evaluating strategy
+input double   InpStratDisableWR     = 35.0;          // Disable strategy if WR below this %
+input bool     InpAutoPairRotation   = true;          // Auto-disable losing pairs
+input int      InpPairMinTrades      = 5;             // Min trades before evaluating pair
+input bool     InpAutoRecovery       = true;          // Auto-resume after halt cooldown
+input int      InpHaltCooldownMin    = 30;            // Minutes to wait before resuming
+input bool     InpAutoSessionFilter  = true;          // Only trade best-performing sessions
+input double   InpSessionMinWR       = 40.0;          // Skip session if WR below this %
+
+input group "══════ 10. SYSTEM ══════"
 input int      InpMagicBase          = 500000;
 input int      InpSlippage           = 30;
 input int      InpMaxTotalTrades     = 8;
@@ -224,6 +236,11 @@ struct PairAnalysis
    int            openTrades;
    // Pair score (for ranking)
    double         pairScore;
+   // Auto-rotation tracking
+   int            pairWins;
+   int            pairLosses;
+   double         pairPnL;
+   bool           pairDisabled;
 };
 
 struct ManagedTrade
@@ -280,6 +297,8 @@ SessionStats   g_newsStats;
 StrategyStats  g_stratStats[4]; // trend, mr, scalp, vol
 
 datetime       g_lastScan;
+datetime       g_haltStartTime;
+bool           g_stratDisabled[4];
 
 //+------------------------------------------------------------------+
 //| INITIALIZATION                                                    |
@@ -308,6 +327,10 @@ int OnInit()
       g_pairs[i].tickCount = 0;
       g_pairs[i].tickCountStart = TimeCurrent();
       g_pairs[i].avgSpread = 0;
+      g_pairs[i].pairWins = 0;
+      g_pairs[i].pairLosses = 0;
+      g_pairs[i].pairPnL = 0;
+      g_pairs[i].pairDisabled = false;
       
       if(!SymbolSelect(pairList[i], true)) { Print("WARN: ", pairList[i], " unavailable"); continue; }
       
@@ -344,6 +367,8 @@ int OnInit()
    g_haltWeekly = false;
    g_haltConsec = false;
    g_lastScan = 0;
+   g_haltStartTime = 0;
+   for(int i = 0; i < 4; i++) g_stratDisabled[i] = false;
    
    ZeroMemory(g_londonStats); ZeroMemory(g_nyStats);
    ZeroMemory(g_asianStats); ZeroMemory(g_newsStats);
@@ -353,12 +378,19 @@ int OnInit()
    for(int i = 0; i < g_pairCount; i++) if(g_pairs[i].active) active++;
    
    Print("══════════════════════════════════════════════════");
-   Print("     PRO AI TRADER v1.0 — 12-MODULE FRAMEWORK");
+   Print("   PRO AI TRADER v2.0 — FULLY AUTOMATED");
    Print("══════════════════════════════════════════════════");
+   Print("Mode:        ", InpFullAuto ? "FULL AUTO-PILOT" : "SEMI-AUTO");
    Print("Pairs:       ", active, "/", g_pairCount, " active");
    Print("Balance:     $", DoubleToString(g_account.Balance(), 2));
    Print("Min Conf:    ", InpMinConfidence, "%");
    Print("Daily Limit: ", InpMaxDailyLoss, "%");
+   Print("Strat Rotate: ", InpAutoStratRotation ? "ON" : "OFF");
+   Print("Pair Rotate:  ", InpAutoPairRotation ? "ON" : "OFF");
+   Print("Auto Recover: ", InpAutoRecovery ? "ON" : "OFF");
+   Print("Session Filt: ", InpAutoSessionFilter ? "ON" : "OFF");
+   Print("══════════════════════════════════════════════════");
+   Print("  >>> BOT IS NOW RUNNING — NO INTERVENTION NEEDED");
    Print("══════════════════════════════════════════════════");
    
    return INIT_SUCCEEDED;
@@ -392,6 +424,41 @@ void OnTick()
    
    // Manage existing positions (every tick)
    ManageAllPositions();
+   
+   // Auto-recovery from halts
+   if(InpAutoRecovery && (g_haltDaily || g_haltWeekly || g_haltConsec))
+   {
+      if(g_haltStartTime == 0) g_haltStartTime = TimeCurrent();
+      int elapsedMin = (int)((TimeCurrent() - g_haltStartTime) / 60);
+      if(elapsedMin >= InpHaltCooldownMin)
+      {
+         // Check if conditions improved before resuming
+         double dd = (g_dayStartBalance > 0) ? (g_dayStartBalance - g_account.Equity()) / g_dayStartBalance * 100.0 : 0;
+         if(g_haltConsec)
+         {
+            g_haltConsec = false;
+            g_consecLosses = 0;
+            g_haltStartTime = 0;
+            Print("AUTO-RECOVERY: Consecutive loss pause lifted after ", InpHaltCooldownMin, "min cooldown");
+         }
+         else if(g_haltDaily && dd < InpMaxDailyLoss * 0.8)
+         {
+            g_haltDaily = false;
+            g_haltStartTime = 0;
+            Print("AUTO-RECOVERY: Daily halt lifted — DD recovered to ", DoubleToString(dd, 1), "%");
+         }
+         else if(g_haltWeekly)
+         {
+            double wdd = (g_weekStartBalance > 0) ? (g_weekStartBalance - g_account.Equity()) / g_weekStartBalance * 100.0 : 0;
+            if(wdd < InpMaxWeeklyDD * 0.8)
+            {
+               g_haltWeekly = false;
+               g_haltStartTime = 0;
+               Print("AUTO-RECOVERY: Weekly halt lifted — DD recovered to ", DoubleToString(wdd, 1), "%");
+            }
+         }
+      }
+   }
    
    // Halt checks
    if(g_haltDaily || g_haltWeekly || g_haltConsec) return;
@@ -810,6 +877,14 @@ void FullScan()
       g_pairs[i].pairScore = g_pairs[i].confidence;
    }
    
+   // Phase 1.5: Auto-rotate strategies (disable losing ones)
+   if(InpAutoStratRotation)
+      AutoRotateStrategies();
+   
+   // Phase 1.6: Auto-rotate pairs (disable losing ones)
+   if(InpAutoPairRotation)
+      AutoRotatePairs();
+   
    // Phase 2: Rank pairs by score (highest first)
    int order[];
    ArrayResize(order, g_pairCount);
@@ -824,12 +899,15 @@ void FullScan()
    {
       int i = order[k];
       if(!g_pairs[i].active) continue;
+      if(g_pairs[i].pairDisabled) continue;
       if(g_pairs[i].strategy == STRAT_SKIP) continue;
+      if(IsStrategyDisabled(g_pairs[i].strategy)) continue;
       if(g_pairs[i].confidence < InpMinConfidence) continue;
       if(g_pairs[i].mtfScore < InpMTFMinScore) continue;
       if(g_pairs[i].openTrades >= InpMaxTradesPerPair) continue;
       if(totalOpen >= InpMaxTotalTrades) break;
       if(!PassesCapitalFilters(i)) continue;
+      if(InpAutoSessionFilter && !IsGoodSession()) continue;
       
       if(ExecuteSignal(i))
          totalOpen++;
@@ -914,6 +992,89 @@ bool ExecuteSignal(int idx)
       return true;
    }
    return false;
+}
+
+//+------------------------------------------------------------------+
+//| AUTO-PILOT: STRATEGY ROTATION                                     |
+//+------------------------------------------------------------------+
+void AutoRotateStrategies()
+{
+   for(int i = 0; i < 4; i++)
+   {
+      if(g_stratStats[i].trades < InpStratMinTrades) continue;
+      
+      if(g_stratStats[i].winRate < InpStratDisableWR && !g_stratDisabled[i])
+      {
+         g_stratDisabled[i] = true;
+         string names[] = {"Trend", "MR", "Scalp", "Vol"};
+         Print("AUTO-ROTATE: Disabled ", names[i], " strategy (WR: ", DoubleToString(g_stratStats[i].winRate, 0), "%)");
+      }
+      else if(g_stratStats[i].winRate >= InpStratDisableWR + 10 && g_stratDisabled[i])
+      {
+         g_stratDisabled[i] = false;
+         string names[] = {"Trend", "MR", "Scalp", "Vol"};
+         Print("AUTO-ROTATE: Re-enabled ", names[i], " strategy (WR: ", DoubleToString(g_stratStats[i].winRate, 0), "%)");
+      }
+   }
+}
+
+bool IsStrategyDisabled(ENUM_STRAT_TYPE strat)
+{
+   if(!InpAutoStratRotation) return false;
+   int idx = -1;
+   switch(strat)
+   {
+      case STRAT_TREND:      idx = 0; break;
+      case STRAT_MEAN_REVERT: idx = 1; break;
+      case STRAT_SCALP:      idx = 2; break;
+      case STRAT_VOLATILITY: idx = 3; break;
+      default: return false;
+   }
+   return (idx >= 0 && idx < 4) ? g_stratDisabled[idx] : false;
+}
+
+//+------------------------------------------------------------------+
+//| AUTO-PILOT: PAIR ROTATION                                         |
+//+------------------------------------------------------------------+
+void AutoRotatePairs()
+{
+   for(int i = 0; i < g_pairCount; i++)
+   {
+      if(!g_pairs[i].active) continue;
+      int totalPairTrades = g_pairs[i].pairWins + g_pairs[i].pairLosses;
+      if(totalPairTrades < InpPairMinTrades) continue;
+      
+      double wr = (totalPairTrades > 0) ? (double)g_pairs[i].pairWins / totalPairTrades * 100 : 0;
+      if(wr < InpStratDisableWR && g_pairs[i].pairPnL < 0 && !g_pairs[i].pairDisabled)
+      {
+         g_pairs[i].pairDisabled = true;
+         Print("AUTO-ROTATE: Disabled pair ", g_pairs[i].symbol, " (WR: ", DoubleToString(wr, 0), "%, PnL: $", DoubleToString(g_pairs[i].pairPnL, 2), ")");
+      }
+      else if(g_pairs[i].pairDisabled && wr >= InpStratDisableWR + 10)
+      {
+         g_pairs[i].pairDisabled = false;
+         Print("AUTO-ROTATE: Re-enabled pair ", g_pairs[i].symbol, " (WR improved to ", DoubleToString(wr, 0), "%)");
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| AUTO-PILOT: SESSION FILTER                                        |
+//+------------------------------------------------------------------+
+bool IsGoodSession()
+{
+   if(!InpAutoSessionFilter) return true;
+   MqlDateTime dt; TimeCurrent(dt);
+   int hour = dt.hour;
+   
+   if(hour >= 8 && hour < 12)
+      return (g_londonStats.trades < 10 || g_londonStats.winRate >= InpSessionMinWR);
+   if(hour >= 13 && hour < 17)
+      return (g_nyStats.trades < 10 || g_nyStats.winRate >= InpSessionMinWR);
+   if(hour >= 0 && hour < 8)
+      return (g_asianStats.trades < 10 || g_asianStats.winRate >= InpSessionMinWR);
+   
+   return true;
 }
 
 //+------------------------------------------------------------------+
@@ -1096,6 +1257,15 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    LogTrade(sym, session, stratIdx >= 0 ? (stratIdx == 0 ? "TREND" : stratIdx == 1 ? "MR" : stratIdx == 2 ? "SCALP" : "VOL") : "UNKNOWN",
             profit, isWin);
    
+   // Update pair stats
+   int pairIdx = (int)(magic - InpMagicBase);
+   if(pairIdx >= 0 && pairIdx < g_pairCount)
+   {
+      g_pairs[pairIdx].pairPnL += profit;
+      if(isWin) g_pairs[pairIdx].pairWins++;
+      else g_pairs[pairIdx].pairLosses++;
+   }
+   
    Print(StringFormat("◀ %s %s | P/L: $%.2f | Session: %s | Consec L: %d | WR: %.0f%%",
          isWin ? "WIN" : "LOSS", sym, profit, session,
          g_consecLosses, stratIdx >= 0 ? g_stratStats[stratIdx].winRate : 0));
@@ -1142,7 +1312,34 @@ void PrintSelfEvaluation()
    }
    Print("  BEST:  ", names[bestIdx], " ($", DoubleToString(g_stratStats[bestIdx].pnl, 2), ")");
    Print("  WORST: ", names[worstIdx], " ($", DoubleToString(g_stratStats[worstIdx].pnl, 2), ")");
+   Print("PAIR PERFORMANCE:");
+   for(int i = 0; i < g_pairCount; i++)
+   {
+      if(!g_pairs[i].active) continue;
+      int pt = g_pairs[i].pairWins + g_pairs[i].pairLosses;
+      double pwr = (pt > 0) ? (double)g_pairs[i].pairWins / pt * 100 : 0;
+      Print(StringFormat("  %s: %dW/%dL | WR: %.0f%% | PnL: $%.2f%s",
+            g_pairs[i].symbol, g_pairs[i].pairWins, g_pairs[i].pairLosses, pwr, g_pairs[i].pairPnL,
+            g_pairs[i].pairDisabled ? " [DISABLED]" : ""));
+   }
+   Print("AUTO-PILOT STATUS:");
+   Print("  Strategies disabled: ", CountDisabledStrategies(), "/4");
+   Print("  Pairs disabled:      ", CountDisabledPairs(), "/", g_pairCount);
    Print("══════════════════════════════════════════════════");
+}
+
+int CountDisabledStrategies()
+{
+   int c = 0;
+   for(int i = 0; i < 4; i++) if(g_stratDisabled[i]) c++;
+   return c;
+}
+
+int CountDisabledPairs()
+{
+   int c = 0;
+   for(int i = 0; i < g_pairCount; i++) if(g_pairs[i].pairDisabled) c++;
+   return c;
 }
 
 //+------------------------------------------------------------------+
